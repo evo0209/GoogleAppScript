@@ -1,13 +1,13 @@
 function doGet() {
   // Serve the HTML file
   return HtmlService.createHtmlOutputFromFile('Index')
-      .setTitle('My Sample Web App')
+      .setTitle('Capig Logs')
       .setSandboxMode(HtmlService.SandboxMode.IFRAME); // Sandboxing for security
 }
 
-// Function to get last 100 row data
+// Function to get last 300 row data
 function getRowsData() {
-  var RowCount = 100;
+  var RowCount = 300;
   var sheet = SpreadsheetApp.openById('1MTxhSLgKFs0SPrRfBOqCT05WOk4JJ7E_AYLcAfgoJNE').getSheetByName('表單回應 1');
   var lastRow = sheet.getLastRow();
   //Logger.log(lastRow);

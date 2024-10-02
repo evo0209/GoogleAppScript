@@ -39,18 +39,69 @@
           row += "<tr>" +
                    "<td>" + filteredData[i][0] + "</td>" +
                    "<td>" + filteredData[i][1] + "</td>" +
-                   "<td>" + filteredData[i][2] + "</td>"
+                   "<td>" + filteredData[i][2] + "</td>" +
                  "</tr>";
         }
         row += "</tr>";
         table.innerHTML = row; // Add new row data
       }
 
+      // Process the month summary with selected date
+      function processMonthSummary() {
+        // extract the date column partial string (ex: "Sep 09 2024") to compare
+        var targetMonthSubstr = getDateValue().toString().substr(4, 4);
+        var sum = 0;
+        // define the object to store the key and value mapping
+        var sumByType = {};
+        //console.log(targetMonthSubstr);
+
+        for (var i = 0; i < sGlobalRowsData.length; i++) {
+          var monthSubstr = sGlobalRowsData[i][1].substr(4, 4);
+          //console.log(monthSubstr);
+          if (targetMonthSubstr == monthSubstr) {
+            //console.log(sGlobalRowsData[i]);
+
+            // columns 2 is for "項目" and 3 is for "金額"
+            var type = sGlobalRowsData[i][2];
+            var value = parseInt(sGlobalRowsData[i][3]);
+            if (!isNaN(value)) {
+              sum += value;
+  
+              // If the type already exists, add to the existing sum
+              if (sumByType[type]) {
+                sumByType[type] += value;
+              } else {
+                // Otherwise, create a new entry in the object with the current value
+                sumByType[type] = value;               
+              }
+              //console.log(sumByType);
+            }
+          }
+        }
+
+        // Build the summary data table
+        var table = document.getElementById('summaryTable');
+        var keys = Object.keys(sumByType);
+        var values = Object.values(sumByType);
+        table.innerHTML = ""; // Clear existing rows
+        var row = "<tr>" +
+                    "<td>當月小計</td>" +
+                    "<td>" + sum.toString() + "</td>" +
+                  "</tr>";
+        
+        for (var i = 0; i < keys.length; i++) {
+          row +=  "<tr>" +
+                    "<td>" + keys[i] + "</td>" +
+                    "<td>" + values[i] + "</td>" +
+                  "</tr>";
+        }
+        table.innerHTML = row;
+      }
+
       // Get the selected date and display it
       function getDateValue() {
         var selectedDate = document.getElementById("datePicker").value;
         var date = new Date(selectedDate);
-        document.getElementById("dateDisplay").innerText = "Selected Date: " + date;
         //console.log(date);
         
         return date;
@@ -62,6 +113,7 @@
         google.script.run.withSuccessHandler(function(aRowsData) {
           sGlobalRowsData = aRowsData;
           renderFilteredData();
+          processMonthSummary();
         }).getRowsData();
       }
 
@@ -102,6 +154,7 @@
         // Add an event listener for the 'change' event
         dateInput.addEventListener("change", function() {
           renderFilteredData();
+          processMonthSummary();
         });
 
         // Add an event listener for submit botton click
@@ -134,9 +187,6 @@
     
     <!-- Date Picker Input -->
     <input type="date" id="datePicker">
-        
-    <!-- Area to display the selected date -->
-    <div id="dateDisplay"></div>
 
     <div>
         <label for="CategoryList">金額</label>
@@ -170,5 +220,10 @@
 
     <!-- Table to display the row data -->
     <table id="dataTable"></table>
+
+    <hr>
+
+    <!-- Table to display the summary -->
+    <table id="summaryTable"></table>
   </body>
 </html>
