@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Capig Logs</title>
+    <script>
+      // Global variables
+      var sGlobalRowsData = [];
+      var sNeedNewRender = false;
+      var sNeedNewFetch = false;
+
+      // Filter the fetched data with selected date and only render the desired data
+      function renderFilteredData() {
+        var filteredData = [["項目", "金額", "備註"]];
+        var filteredDataCount = 0;
+        // extract the date column partial string (ex: "Sep 09 2024") to compare
+        var targetDateSubstr = getDateValue().toString().substr(4, 12);
+        //console.log(targetDateSubstr);
+
+        for (var i = 0; i < sGlobalRowsData.length; i++) {
+          var dateSubstr = sGlobalRowsData[i][1].substr(4, 12);
+          //console.log(dateSubstr);
+          if (targetDateSubstr == dateSubstr) {
+            // columns for "項目", "金額", "備註"
+            console.log(sGlobalRowsData[i]);            
+            var newData = [sGlobalRowsData[i][2], sGlobalRowsData[i][3], sGlobalRowsData[i][4]];
+            filteredData.push(newData);
+            filteredDataCount += 1;
+            //console.log(filteredData[filteredDataCount]);
+          }
+        }
+        console.log(filteredDataCount);
+
+        // Display the row data in the table
+        var table = document.getElementById('dataTable');
+        table.innerHTML = ""; // Clear existing rows
+
+        var row = "<tr>";
+        for (var i = 0; i < filteredData.length; i++) {
+          row += "<tr>" +
+                   "<td>" + filteredData[i][0] + "</td>" +
+                   "<td>" + filteredData[i][1] + "</td>" +
+                   "<td>" + filteredData[i][2] + "</td>"
+                 "</tr>";
+        }
+        row += "</tr>";
+        table.innerHTML = row; // Add new row data
+      }
+
+      // Get the selected date and display it
+      function getDateValue() {
+        var selectedDate = document.getElementById("datePicker").value;
+        var date = new Date(selectedDate);
+        document.getElementById("dateDisplay").innerText = "Selected Date: " + date;
+        //console.log(date);
+        
+        return date;
+      }
+
+      // Retrieve and display the row data
+      function fetchRowsData() {
+        // Call server-side function to get the row data
+        google.script.run.withSuccessHandler(function(aRowsData) {
+          sGlobalRowsData = aRowsData;
+          renderFilteredData();
+        }).getRowsData();
+      }
+
+      // Submit the payment log
+      function submitLog() {
+        var category = document.getElementById("CategoryList").value;
+        var price = document.getElementById("priceInput").value;
+        var note = document.getElementById("noteInput").value;
+        var date = getDateValue().toString();
+        var timestamp = new Date();
+
+        var rowData = [timestamp.toString(), date, category, price, note];
+        //console.log(rowData);
+
+        // Call server-side function to set the row data
+        google.script.run.withSuccessHandler(function() {
+          fetchRowsData();
+          // Clear the input boxes
+          document.getElementById("priceInput").value = "";
+          document.getElementById("noteInput").value = "";
+        }).setRowData(rowData);
+      }
+
+      // Page on load actions
+      window.onload = function() {
+        var today = new Date();
+        var day = String(today.getDate()).padStart(2, '0');
+        var month = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+        var year = today.getFullYear();
+        
+        var todayDate = year + '-' + month + '-' + day;
+
+        var dateInput = document.getElementById("datePicker");        
+        dateInput.value = todayDate;
+
+        fetchRowsData();
+
+        // Add an event listener for the 'change' event
+        dateInput.addEventListener("change", function() {
+          renderFilteredData();
+        });
+
+        // Add an event listener for submit botton click
+        var button = document.getElementById("submitButton");        
+        // Add an event listener for the 'click' event
+        button.addEventListener("click", function() {
+          submitLog();
+        });
+
+        // Add an event listener for the 'keydown' event
+        var priceInput = document.getElementById("priceInput");
+        priceInput.addEventListener("keydown", function(event) {
+          // Check if the Enter key (key code 13) was pressed
+          if (event.key === "Enter") {
+            submitLog();
+          }
+        });        
+        var noteInput = document.getElementById("noteInput");
+        noteInput.addEventListener("keydown", function(event) {
+          // Check if the Enter key (key code 13) was pressed
+          if (event.key === "Enter") {
+            submitLog();
+          }
+        });  
+      };
+    </script>
+  </head>
+  <body>
+    <h1>Capig Logs</h1>
+    
+    <!-- Date Picker Input -->
+    <input type="date" id="datePicker">
+        
+    <!-- Area to display the selected date -->
+    <div id="dateDisplay"></div>
+
+    <div>
+        <label for="CategoryList">金額</label>
+        <select id="CategoryList">
+          <option value="餐費">餐費</option>
+          <option value="購物">購物</option>
+          <option value="加油">加油</option>
+          <option value="娛樂">娛樂</option>
+          <option value="寵物">寵物</option>
+          <option value="婦嬰">婦嬰</option>
+          <option value="醫療">醫療</option>
+          <option value="交通">交通</option>
+          <option value="水電">水電</option>
+          <option value="其它">其它</option>
+          <option value="保險">保險</option>
+          <option value="稅金">稅金</option>          
+        </select>
+    </div>
+
+    <div>
+        <label for="priceInput">金額</label>
+        <input type="text" id="priceInput">
+    </div>
+
+    <div>
+        <label for="noteInput">備註</label>
+        <input type="text" id="noteInput">
+    </div>
+
+    <button id="submitButton">送出</button>
+
+    <!-- Table to display the row data -->
+    <table id="dataTable"></table>
+  </body>
+</html>
