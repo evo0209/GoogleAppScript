@@ -6,9 +6,10 @@
     <title>Capig Logs</title>
     
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <style>
-      /* 自訂一些微調，讓介面更像手機 App */
       body {
         background-color: #f4f7f6;
         padding-top: 20px;
@@ -35,7 +36,6 @@
         border-radius: 10px;
         font-size: 1.5rem;
       }
-      /* 讓表格在手機上可以水平滑動且更美觀 */
       .table-responsive {
         border-radius: 12px;
         overflow: hidden;
@@ -44,6 +44,10 @@
         background-color: #e9ecef !important;
         white-space: nowrap;
       }
+      /* 調整手風琴按鈕的樣式，讓分類跟金額可以左右對齊 */
+      .accordion-button::after {
+        margin-left: 0;
+      }
     </style>
 
     <script>
@@ -51,27 +55,24 @@
       var sGlobalRowsData = [];
       var sNeedNewRender = false;
       var sNeedNewFetch = false;
+      var myPieChart = null; // 儲存圖表實例
 
       // Filter the fetched data with selected date and only render the desired data
       function renderFilteredData() {
         var filteredData = [["項目", "金額", "備註"]];
-        var filteredDataCount = 0;
         var targetDateSubstr = getDateValue().toString().substr(4, 12);
 
         for (var i = 0; i < sGlobalRowsData.length; i++) {
           var dateSubstr = sGlobalRowsData[i][1].substr(4, 12);
           if (targetDateSubstr == dateSubstr) {           
-            var newData = [sGlobalRowsData[i][2], sGlobalRowsData[i][3], sGlobalRowsData[i][4]];
+            var newData = [sGlobalRowsData[i][2], sGlobalRowsData[i][3], sGlobalRowsData[i][4] || ""];
             filteredData.push(newData);
-            filteredDataCount += 1;
           }
         }
 
-        // Display the row data in the table
         var table = document.getElementById('dataTable');
         table.innerHTML = ""; 
 
-        // 改用 thead 和 tbody 讓 Bootstrap 表格樣式更好看
         var html = "<thead class='table-light'><tr><th>" + filteredData[0][0] + "</th><th>" + filteredData[0][1] + "</th><th>" + filteredData[0][2] + "</th></tr></thead><tbody>";
         for (var i = 1; i < filteredData.length; i++) {
           html += "<tr>" +
@@ -84,49 +85,134 @@
         table.innerHTML = html;
       }
 
-      // Process the month summary with selected date
+      // Process the month summary with selected date (包含圖表與摺疊明細)
       function processMonthSummary() {
         var targetMonthSubstr = getDateValue().toString().substr(4, 4);
         var sum = 0;
         var sumByType = {};
+        var detailsByType = {}; // 用來儲存各類別的明細陣列
 
         for (var i = 0; i < sGlobalRowsData.length; i++) {
           var monthSubstr = sGlobalRowsData[i][1].substr(4, 4);
           if (targetMonthSubstr == monthSubstr) {
+            var rawDate = sGlobalRowsData[i][1];
+            var d = new Date(rawDate);
+            // 取得年份
+            var year = d.getFullYear();
+            // 取得月份 (注意：JavaScript 的月份是從 0 開始的，所以要 +1)，並用 padStart 補齊兩位數
+            var month = String(d.getMonth() + 1).padStart(2, '0');
+            // 取得日期，並用 padStart 補齊兩位數
+            var day = String(d.getDate()).padStart(2, '0');
+            // 組合合成 YYYY-MM-DD
+            var date = year + '-' + month + '-' + day;
+
             var type = sGlobalRowsData[i][2];
             var value = parseInt(sGlobalRowsData[i][3]);
+            var note = sGlobalRowsData[i][4] || "";
+
             if (!isNaN(value)) {
               sum += value;
+              // 計算各類別總和
               if (sumByType[type]) {
                 sumByType[type] += value;
               } else {
-                sumByType[type] = value;               
+                sumByType[type] = value;
+                detailsByType[type] = []; // 初始化該類別的明細陣列
               }
+              // 將當筆資料存入該類別的明細中
+              detailsByType[type].push({ date: date, item: type, price: value, note: note });
             }
           }
         }
 
-        // Build the summary data table
-        var table = document.getElementById('summaryTable');
+        var container = document.getElementById('summaryContainer');
         var keys = Object.keys(sumByType);
         var values = Object.values(sumByType);
-        table.innerHTML = ""; 
+
+        // 防呆：如果當月沒資料，顯示提示並清空容器
+        if (keys.length === 0) {
+          container.innerHTML = "<div class='text-center text-muted py-4'>本月尚無紀錄</div>";
+          return;
+        }
+
+        // 1. 當月小計與圓餅圖區塊
+        var html = "<div class='alert alert-warning text-center fw-bold fs-5 mb-3'>當月小計: $" + sum + "</div>";
+        html += "<div class='mb-4 mx-auto' style='max-width: 260px;'><canvas id='monthlyPieChart'></canvas></div>";
         
-        var html = "<thead class='table-light'><tr><th>分類</th><th>金額</th></tr></thead><tbody>";
-        html += "<tr class='table-warning fw-bold'><td>當月小計</td><td>" + sum.toString() + "</td></tr>";
+        // 2. 摺疊明細區塊 (手風琴效果)
+        html += "<div class='accordion' id='monthlyAccordion'>";
         
         for (var i = 0; i < keys.length; i++) {
-          html +=  "<tr><td>" + keys[i] + "</td><td>" + values[i] + "</td></tr>";
+          var key = keys[i];
+          var collapseId = "collapseMonth" + i;
+          
+          html += "<div class='accordion-item'>";
+          // 按鈕標題 (顯示分類與金額)
+          html += "<h2 class='accordion-header' id='headingMonth" + i + "'>";
+          html += "<button class='accordion-button collapsed' type='button' data-bs-toggle='collapse' data-bs-target='#" + collapseId + "'>";
+          html += "<div class='d-flex justify-content-between w-100 me-3'><span>" + key + "</span><span class='fw-bold'>$" + sumByType[key] + "</span></div>";
+          html += "</button></h2>";
+          
+          // 摺疊展開後的內容 (表格)
+          html += "<div id='" + collapseId + "' class='accordion-collapse collapse' data-bs-parent='#monthlyAccordion'>";
+          html += "<div class='accordion-body p-0'>";
+          html += "<div class='table-responsive'><table class='table table-sm table-striped mb-0 text-center'>";
+          html += "<thead class='table-light'><tr><th>日期</th><th>金額</th><th>備註</th></tr></thead><tbody>";
+          
+          // 填入該分類的所有明細
+          var details = detailsByType[key];
+          for (var j = 0; j < details.length; j++) {
+            html += "<tr><td>" + details[j].date + "</td><td>" + details[j].price + "</td><td>" + details[j].note + "</td></tr>";
+          }
+          
+          html += "</tbody></table></div>";
+          html += "</div></div></div>";
         }
-        html += "</tbody>";
-        table.innerHTML = html;
+        html += "</div>";
+
+        container.innerHTML = html;
+
+        // 生成 HTML 之後繪製圓餅圖
+        renderPieChart(keys, values);
+      }
+
+      // 繪製圓餅圖函式
+      function renderPieChart(labels, data) {
+        var ctx = document.getElementById('monthlyPieChart').getContext('2d');
+        // 如果已經有舊的圖表，先銷毀它，避免重疊與卡頓
+        if (myPieChart) {
+          myPieChart.destroy();
+        }
+        myPieChart = new Chart(ctx, {
+          type: 'doughnut', // doughnut (甜甜圈圖) 在手機上視覺比較輕盈，也可改回 'pie'
+          data: {
+            labels: labels,
+            datasets: [{
+              data: data,
+              backgroundColor: [
+                '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                '#FF9F40', '#E7E9ED', '#8AC926', '#1982C4', '#6A4C93',
+                '#F15BB5', '#00BBF9'
+              ],
+              borderWidth: 2
+            }]
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { boxWidth: 12 }
+              }
+            }
+          }
+        });
       }
 
       // Get the selected date and display it
       function getDateValue() {
         var selectedDate = document.getElementById("datePicker").value;
-        var date = new Date(selectedDate);
-        return date;
+        return new Date(selectedDate);
       }
 
       // Retrieve and display the row data
@@ -148,7 +234,6 @@
         var date = getDateValue().toString();
         var timestamp = new Date();
 
-        // 防呆：確保有輸入金額
         if(!price) {
           alert("請輸入金額！");
           return;
@@ -156,7 +241,6 @@
 
         var rowData = [timestamp.toString(), date, category, price, note];
         
-        // 送出時鎖定按鈕顯示 loading，避免網路慢時重複點擊
         var btn = document.getElementById("submitButton");
         var originalText = btn.innerHTML;
         btn.disabled = true;
@@ -167,7 +251,6 @@
           document.getElementById("priceInput").value = "";
           document.getElementById("noteInput").value = "";
           
-          // 恢復按鈕狀態
           btn.disabled = false;
           btn.innerHTML = originalText;
         }).setRowData(rowData);
@@ -176,8 +259,10 @@
       // 顯示表格載入狀態
       function setLoading(isLoading) {
         var tableBody = document.getElementById('dataTable');
-        if(isLoading && tableBody.innerHTML === "") {
+        var summaryContainer = document.getElementById('summaryContainer');
+        if(isLoading) {
            tableBody.innerHTML = "<tr><td colspan='3' class='text-center text-muted py-3'>載入資料中...</td></tr>";
+           summaryContainer.innerHTML = "<div class='text-center text-muted py-3'>載入圖表中...</div>";
         }
       }
 
@@ -198,15 +283,12 @@
           processMonthSummary();
         });
 
-        var button = document.getElementById("submitButton");        
-        button.addEventListener("click", submitLog);
+        document.getElementById("submitButton").addEventListener("click", submitLog);
 
-        var priceInput = document.getElementById("priceInput");
-        priceInput.addEventListener("keydown", function(event) {
+        document.getElementById("priceInput").addEventListener("keydown", function(event) {
           if (event.key === "Enter") submitLog();
         });        
-        var noteInput = document.getElementById("noteInput");
-        noteInput.addEventListener("keydown", function(event) {
+        document.getElementById("noteInput").addEventListener("keydown", function(event) {
           if (event.key === "Enter") submitLog();
         });  
       };
@@ -263,9 +345,7 @@
 
       <h5 class="mb-3 ps-2 fw-bold text-secondary">本月統計</h5>
       <div class="card p-3 mb-4">
-        <div class="table-responsive">
-          <table id="summaryTable" class="table table-sm table-borderless mb-0 align-middle text-center"></table>
-        </div>
+        <div id="summaryContainer"></div>
       </div>
 
     </div>
