@@ -1,7 +1,51 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
   <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Capig Logs</title>
+    
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+      /* 自訂一些微調，讓介面更像手機 App */
+      body {
+        background-color: #f4f7f6;
+        padding-top: 20px;
+        padding-bottom: 40px;
+      }
+      .app-container {
+        max-width: 800px;
+        margin: auto;
+      }
+      .card {
+        border: none;
+        border-radius: 16px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+        margin-bottom: 20px;
+      }
+      .btn-primary {
+        padding: 12px;
+        font-size: 1.5rem;
+        border-radius: 12px;
+        background-color: #0d6efd;
+      }
+      .form-control, .form-select {
+        padding: 12px;
+        border-radius: 10px;
+        font-size: 1.5rem;
+      }
+      /* 讓表格在手機上可以水平滑動且更美觀 */
+      .table-responsive {
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      th {
+        background-color: #e9ecef !important;
+        white-space: nowrap;
+      }
+    </style>
+
     <script>
       // Global variables
       var sGlobalRowsData = [];
@@ -12,69 +56,52 @@
       function renderFilteredData() {
         var filteredData = [["項目", "金額", "備註"]];
         var filteredDataCount = 0;
-        // extract the date column partial string (ex: "Sep 09 2024") to compare
         var targetDateSubstr = getDateValue().toString().substr(4, 12);
-        //console.log(targetDateSubstr);
 
         for (var i = 0; i < sGlobalRowsData.length; i++) {
           var dateSubstr = sGlobalRowsData[i][1].substr(4, 12);
-          //console.log(dateSubstr);
-          if (targetDateSubstr == dateSubstr) {
-            // columns for "項目", "金額", "備註"
-            console.log(sGlobalRowsData[i]);            
+          if (targetDateSubstr == dateSubstr) {           
             var newData = [sGlobalRowsData[i][2], sGlobalRowsData[i][3], sGlobalRowsData[i][4]];
             filteredData.push(newData);
             filteredDataCount += 1;
-            //console.log(filteredData[filteredDataCount]);
           }
         }
-        console.log(filteredDataCount);
 
         // Display the row data in the table
         var table = document.getElementById('dataTable');
-        table.innerHTML = ""; // Clear existing rows
+        table.innerHTML = ""; 
 
-        var row = "<tr>";
-        for (var i = 0; i < filteredData.length; i++) {
-          row += "<tr>" +
+        // 改用 thead 和 tbody 讓 Bootstrap 表格樣式更好看
+        var html = "<thead class='table-light'><tr><th>" + filteredData[0][0] + "</th><th>" + filteredData[0][1] + "</th><th>" + filteredData[0][2] + "</th></tr></thead><tbody>";
+        for (var i = 1; i < filteredData.length; i++) {
+          html += "<tr>" +
                    "<td>" + filteredData[i][0] + "</td>" +
                    "<td>" + filteredData[i][1] + "</td>" +
                    "<td>" + filteredData[i][2] + "</td>" +
                  "</tr>";
         }
-        row += "</tr>";
-        table.innerHTML = row; // Add new row data
+        html += "</tbody>";
+        table.innerHTML = html;
       }
 
       // Process the month summary with selected date
       function processMonthSummary() {
-        // extract the date column partial string (ex: "Sep 09 2024") to compare
         var targetMonthSubstr = getDateValue().toString().substr(4, 4);
         var sum = 0;
-        // define the object to store the key and value mapping
         var sumByType = {};
-        //console.log(targetMonthSubstr);
 
         for (var i = 0; i < sGlobalRowsData.length; i++) {
           var monthSubstr = sGlobalRowsData[i][1].substr(4, 4);
-          //console.log(monthSubstr);
           if (targetMonthSubstr == monthSubstr) {
-            //console.log(sGlobalRowsData[i]);
-
-            // columns 2 is for "項目" and 3 is for "金額"
             var type = sGlobalRowsData[i][2];
             var value = parseInt(sGlobalRowsData[i][3]);
             if (!isNaN(value)) {
               sum += value;
-  
-              // If the type already exists, add to the existing sum
               if (sumByType[type]) {
                 sumByType[type] += value;
               } else {
-                // Otherwise, create a new entry in the object with the current value
                 sumByType[type] = value;               
               }
-              //console.log(sumByType);
             }
           }
         }
@@ -83,37 +110,33 @@
         var table = document.getElementById('summaryTable');
         var keys = Object.keys(sumByType);
         var values = Object.values(sumByType);
-        table.innerHTML = ""; // Clear existing rows
-        var row = "<tr>" +
-                    "<td>當月小計</td>" +
-                    "<td>" + sum.toString() + "</td>" +
-                  "</tr>";
+        table.innerHTML = ""; 
+        
+        var html = "<thead class='table-light'><tr><th>分類</th><th>金額</th></tr></thead><tbody>";
+        html += "<tr class='table-warning fw-bold'><td>當月小計</td><td>" + sum.toString() + "</td></tr>";
         
         for (var i = 0; i < keys.length; i++) {
-          row +=  "<tr>" +
-                    "<td>" + keys[i] + "</td>" +
-                    "<td>" + values[i] + "</td>" +
-                  "</tr>";
+          html +=  "<tr><td>" + keys[i] + "</td><td>" + values[i] + "</td></tr>";
         }
-        table.innerHTML = row;
+        html += "</tbody>";
+        table.innerHTML = html;
       }
 
       // Get the selected date and display it
       function getDateValue() {
         var selectedDate = document.getElementById("datePicker").value;
         var date = new Date(selectedDate);
-        //console.log(date);
-        
         return date;
       }
 
       // Retrieve and display the row data
       function fetchRowsData() {
-        // Call server-side function to get the row data
+        setLoading(true);
         google.script.run.withSuccessHandler(function(aRowsData) {
           sGlobalRowsData = aRowsData;
           renderFilteredData();
           processMonthSummary();
+          setLoading(false);
         }).getRowsData();
       }
 
@@ -125,25 +148,44 @@
         var date = getDateValue().toString();
         var timestamp = new Date();
 
-        var rowData = [timestamp.toString(), date, category, price, note];
-        //console.log(rowData);
+        // 防呆：確保有輸入金額
+        if(!price) {
+          alert("請輸入金額！");
+          return;
+        }
 
-        // Call server-side function to set the row data
+        var rowData = [timestamp.toString(), date, category, price, note];
+        
+        // 送出時鎖定按鈕顯示 loading，避免網路慢時重複點擊
+        var btn = document.getElementById("submitButton");
+        var originalText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = "<span class='spinner-border spinner-border-sm'></span> 處理中...";
+
         google.script.run.withSuccessHandler(function() {
           fetchRowsData();
-          // Clear the input boxes
           document.getElementById("priceInput").value = "";
           document.getElementById("noteInput").value = "";
+          
+          // 恢復按鈕狀態
+          btn.disabled = false;
+          btn.innerHTML = originalText;
         }).setRowData(rowData);
       }
+      
+      // 顯示表格載入狀態
+      function setLoading(isLoading) {
+        var tableBody = document.getElementById('dataTable');
+        if(isLoading && tableBody.innerHTML === "") {
+           tableBody.innerHTML = "<tr><td colspan='3' class='text-center text-muted py-3'>載入資料中...</td></tr>";
+        }
+      }
 
-      // Page on load actions
       window.onload = function() {
         var today = new Date();
         var day = String(today.getDate()).padStart(2, '0');
-        var month = String(today.getMonth() + 1).padStart(2, '0'); // January is 0!
+        var month = String(today.getMonth() + 1).padStart(2, '0');
         var year = today.getFullYear();
-        
         var todayDate = year + '-' + month + '-' + day;
 
         var dateInput = document.getElementById("datePicker");        
@@ -151,79 +193,81 @@
 
         fetchRowsData();
 
-        // Add an event listener for the 'change' event
         dateInput.addEventListener("change", function() {
           renderFilteredData();
           processMonthSummary();
         });
 
-        // Add an event listener for submit botton click
         var button = document.getElementById("submitButton");        
-        // Add an event listener for the 'click' event
-        button.addEventListener("click", function() {
-          submitLog();
-        });
+        button.addEventListener("click", submitLog);
 
-        // Add an event listener for the 'keydown' event
         var priceInput = document.getElementById("priceInput");
         priceInput.addEventListener("keydown", function(event) {
-          // Check if the Enter key (key code 13) was pressed
-          if (event.key === "Enter") {
-            submitLog();
-          }
+          if (event.key === "Enter") submitLog();
         });        
         var noteInput = document.getElementById("noteInput");
         noteInput.addEventListener("keydown", function(event) {
-          // Check if the Enter key (key code 13) was pressed
-          if (event.key === "Enter") {
-            submitLog();
-          }
+          if (event.key === "Enter") submitLog();
         });  
       };
     </script>
   </head>
   <body>
-    <h1>Capig Logs</h1>
-    
-    <!-- Date Picker Input -->
-    <input type="date" id="datePicker">
+    <div class="container app-container">
+      <h2 class="text-center mb-4 fw-bold text-primary">Capig Logs</h2>
+      
+      <div class="card p-4">
+        <div class="mb-3">
+          <label for="datePicker" class="form-label text-muted">日期</label>
+          <input type="date" id="datePicker" class="form-control">
+        </div>
 
-    <div>
-        <label for="CategoryList">金額</label>
-        <select id="CategoryList">
-          <option value="餐費">餐費</option>
-          <option value="購物">購物</option>
-          <option value="加油">加油</option>
-          <option value="娛樂">娛樂</option>
-          <option value="寵物">寵物</option>
-          <option value="婦嬰">婦嬰</option>
-          <option value="醫療">醫療</option>
-          <option value="交通">交通</option>
-          <option value="水電">水電</option>
-          <option value="其它">其它</option>
-          <option value="保險">保險</option>
-          <option value="稅金">稅金</option>          
-        </select>
+        <div class="row mb-3">
+          <div class="col-6">
+            <label for="CategoryList" class="form-label text-muted">分類</label>
+            <select id="CategoryList" class="form-select">
+              <option value="餐費">餐費</option>
+              <option value="購物">購物</option>
+              <option value="加油">加油</option>
+              <option value="娛樂">娛樂</option>
+              <option value="寵物">寵物</option>
+              <option value="婦嬰">婦嬰</option>
+              <option value="醫療">醫療</option>
+              <option value="交通">交通</option>
+              <option value="水電">水電</option>
+              <option value="其它">其它</option>
+              <option value="保險">保險</option>
+              <option value="稅金">稅金</option>          
+            </select>
+          </div>
+          <div class="col-6">
+            <label for="priceInput" class="form-label text-muted">金額</label>
+            <input type="number" id="priceInput" class="form-control" inputmode="numeric" placeholder="0">
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="noteInput" class="form-label text-muted">備註</label>
+          <input type="text" id="noteInput" class="form-control" placeholder="輸入備註 (選填)">
+        </div>
+
+        <button id="submitButton" class="btn btn-primary w-100 shadow-sm">送出紀錄</button>
+      </div>
+
+      <h5 class="mb-3 ps-2 fw-bold text-secondary">當日明細</h5>
+      <div class="card p-3">
+        <div class="table-responsive">
+          <table id="dataTable" class="table table-striped table-hover mb-0 align-middle text-center"></table>
+        </div>
+      </div>
+
+      <h5 class="mb-3 ps-2 fw-bold text-secondary">本月統計</h5>
+      <div class="card p-3 mb-4">
+        <div class="table-responsive">
+          <table id="summaryTable" class="table table-sm table-borderless mb-0 align-middle text-center"></table>
+        </div>
+      </div>
+
     </div>
-
-    <div>
-        <label for="priceInput">金額</label>
-        <input type="text" id="priceInput">
-    </div>
-
-    <div>
-        <label for="noteInput">備註</label>
-        <input type="text" id="noteInput">
-    </div>
-
-    <button id="submitButton">送出</button>
-
-    <!-- Table to display the row data -->
-    <table id="dataTable"></table>
-
-    <hr>
-
-    <!-- Table to display the summary -->
-    <table id="summaryTable"></table>
   </body>
 </html>
